@@ -1,0 +1,34 @@
+name: Deploy Ecommerce
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build App
+        run: npm run build
+
+      - name: Upload Build
+        uses: appleboy/scp-action@master
+        with:
+          host: 35.244.32.175
+          username: smalcouture
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: "build/*"
+          target: "/home/smalcouture/ecommerce-build"
