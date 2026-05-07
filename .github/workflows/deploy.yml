@@ -30,6 +30,18 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          source: "build/"
+          source: "build/*"
           target: "/home/smalcouture/ecommerce-build"
-          
+
+      - name: Restart Docker Container
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /home/smalcouture
+
+            docker ps
+
+            docker restart $(docker ps -q)
