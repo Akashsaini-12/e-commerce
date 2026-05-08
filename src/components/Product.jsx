@@ -393,7 +393,7 @@ const Product = ({ addToCart }) => {
                     lineHeight: 1,
                   }}
                 >
-                  You vfvggggg in
+                  You are in
                 </span>
                 <MSelect
                   name="collection"
