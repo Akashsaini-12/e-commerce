@@ -30,10 +30,10 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          source: "build/*"
-          target: "/home/smalcouture/react-app/build"
+          source: "build"
+          target: "/home/smalcouture/react-app"
 
-      - name: Start React App Container
+      - name: Restart React Container
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -42,7 +42,9 @@ jobs:
           script: |
             cd /home/smalcouture/react-app
 
+            sudo rm -rf build/static
+
             docker compose down
-            docker compose up -d
+            docker compose up -d --force-recreate
 
             docker ps
