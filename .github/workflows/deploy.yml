@@ -31,17 +31,18 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           source: "build/*"
-          target: "/home/smalcouture/ecommerce-build"
+          target: "/home/smalcouture/react-app/build"
 
-      - name: Restart Docker Container
+      - name: Start React App Container
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /home/smalcouture
+            cd /home/smalcouture/react-app
+
+            docker compose down
+            docker compose up -d
 
             docker ps
-
-            docker restart $(docker ps -q)
