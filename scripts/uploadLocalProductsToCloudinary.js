@@ -1,12 +1,13 @@
-/* 
+/*
  * One-off helper script:
  * - Reads images from /public/cdn/shop/products
- * - Uploads each image to Cloudinary
- * - Prints catalog product JSON you can paste into your DB or API
+ * - Uploads each image to your backend (/api/upload)
+ * - Inserts catalog products via admin API
  *
  * Usage:
- *   1) npm install cloudinary
- *   2) node scripts/uploadLocalProductsToCloudinary.js
+ *   1) Backend running on PORT (default 4000)
+ *   2) Set ADMIN_TOKEN in env (JWT from admin login) OR pass as 2nd arg
+ *   3) node scripts/uploadLocalProductsToServer.js
  *
  * Assumptions:
  * - Filenames are like "1_red_1.jpg", "1_red_2.jpg", "2_blue_1.jpg" etc.
@@ -22,6 +23,9 @@ const fs = require("fs");
 const FormData = require("form-data");
 const fetch = require("node-fetch");
 
+const API_BASE = process.env.API_BASE || "http://localhost:4000";
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || process.argv[2] || "";
+
 const PRODUCTS_DIR = path.join(
   __dirname,
   "..",
@@ -32,7 +36,6 @@ const PRODUCTS_DIR = path.join(
 );
 
 function parseFileName(file) {
-  // "1_red_1.jpg" -> { productKey: "1", colorKey: "red" }
   const base = file.replace(/\.[^.]+$/, "");
   const parts = base.split("_");
   if (parts.length < 2) return null;
@@ -41,7 +44,51 @@ function parseFileName(file) {
   return { productKey, colorKey };
 }
 
+async function uploadFileToServer(fullPath) {
+  const form = new FormData();
+  form.append("file", fs.createReadStream(fullPath));
+
+  const headers = { ...form.getHeaders() };
+  if (ADMIN_TOKEN) {
+    headers.Authorization = `Bearer ${ADMIN_TOKEN}`;
+  }
+
+  const res = await fetch(`${API_BASE}/api/upload`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { error: text };
+  }
+
+  if (!res.ok) {
+    throw new Error(
+      `Upload failed: ${res.status} ${data?.error || text || "unknown"}`,
+    );
+  }
+
+  const url = data?.url ? String(data.url).trim() : "";
+  if (!url) throw new Error("No URL returned from server");
+  return url;
+}
+
 async function main() {
+  if (!ADMIN_TOKEN) {
+    console.error(
+      "ADMIN_TOKEN required. Login as admin in the app, copy JWT from localStorage.token, then:",
+    );
+    console.error(
+      "  ADMIN_TOKEN=your_jwt node scripts/uploadLocalProductsToServer.js",
+    );
+    process.exit(1);
+  }
+
   if (!fs.existsSync(PRODUCTS_DIR)) {
     console.error("Products folder not found:", PRODUCTS_DIR);
     process.exit(1);
@@ -73,7 +120,6 @@ async function main() {
 
   const allProducts = [];
   const productKeys = Object.keys(grouped).sort();
-  // Limit for safety; adjust if you need more
   const limitedKeys = productKeys.slice(0, 10);
 
   for (const productKey of limitedKeys) {
@@ -86,27 +132,10 @@ async function main() {
       const uploadedUrls = [];
       for (const file of imageFiles) {
         const fullPath = path.join(PRODUCTS_DIR, file);
-        console.log("Uploading (unsigned)", fullPath);
-
-        const form = new FormData();
-        form.append("file", fs.createReadStream(fullPath));
-        form.append("upload_preset", "ecommerce_upload");
-
+        console.log("Uploading to server:", fullPath);
         // eslint-disable-next-line no-await-in-loop
-        const res = await fetch(
-          "https://api.cloudinary.com/v1_1/dv6jjaeho/image/upload",
-          {
-            method: "POST",
-            body: form,
-          },
-        );
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Upload failed: ${res.status} ${text}`);
-        }
-        // eslint-disable-next-line no-await-in-loop
-        const data = await res.json();
-        uploadedUrls.push(data.secure_url || data.url);
+        const url = await uploadFileToServer(fullPath);
+        uploadedUrls.push(url);
       }
 
       variants.push({
@@ -129,7 +158,7 @@ async function main() {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "product";
 
-    const productJson = {
+    allProducts.push({
       name: productName,
       slug: base,
       price: 0,
@@ -141,17 +170,17 @@ async function main() {
       numReviews: 0,
       isFeatured: false,
       status: "active",
-    };
-
-    allProducts.push(productJson);
+    });
   }
 
-  // Insert each product into backend via existing admin API
   for (const product of allProducts) {
     try {
-      const res = await fetch("http://localhost:4000/api/admin/catalog-products", {
+      const res = await fetch(`${API_BASE}/api/admin/catalog-products`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${ADMIN_TOKEN}`,
+        },
         body: JSON.stringify(product),
       });
       if (!res.ok) {
@@ -171,4 +200,3 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-

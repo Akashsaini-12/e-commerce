@@ -1,11 +1,11 @@
 // const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://website-backend-bot8.vercel.app";
   //  const API_BASE = "https://website-backend-bot8.vercel.app";
   // const API_BASE = "http://35.244.32.175:4000";
-  const API_BASE = "https://api.smalcouture.com";
+  // const API_BASE = "https://api.smalcouture.com";
 // ss
-// const API_BASE =
-//    process.env.REACT_APP_API_BASE_URL ||
-//    `http://${window.location.hostname}:4000`;
+const API_BASE =
+   process.env.REACT_APP_API_BASE_URL ||
+   `http://${window.location.hostname}:4000`;
 async function fetchJson(url, options = {}, timeoutMs = 30000) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
@@ -37,41 +37,65 @@ async function fetchJson(url, options = {}, timeoutMs = 30000) {
   }
 }
 
-// Shared helper: upload a single image file to Cloudinary
-// Returns the final image URL string.
-export async function uploadImageToCloudinary(file) {
+// Upload a single image to your backend (saved under /uploads, URL returned).
+export async function uploadImage(file) {
   if (!file) {
     throw new Error("No file provided for upload");
   }
 
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("upload_preset", "ecommerce_upload");
 
-  const res = await fetch(
-    "https://api.cloudinary.com/v1_1/dv6jjaeho/image/upload",
-    {
-      method: "POST",
-      body: formData,
-    },
-  );
+  const token = localStorage.getItem("token") || "";
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-  if (!res.ok) {
-    throw new Error("Upload failed");
-  }
+  const data = await fetchJson(`${API_BASE}/api/upload`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
 
-  const data = await res.json();
-  if (!data.secure_url && !data.url) {
+  const url = data?.url ? String(data.url).trim() : "";
+  if (!url) {
     throw new Error("No URL returned from server");
   }
-
-  return data.secure_url || data.url;
+  return url;
 }
 
-export async function uploadImagesToCloudinary(files) {
-  const list = Array.from(files || []);
-  return Promise.all(list.map((file) => uploadImageToCloudinary(file)));
+export async function uploadImages(files) {
+  const list = Array.from(files || []).filter(Boolean);
+  if (!list.length) return [];
+
+  if (list.length === 1) {
+    return [await uploadImage(list[0])];
+  }
+
+  const formData = new FormData();
+  for (const file of list) {
+    formData.append("files", file);
+  }
+
+  const token = localStorage.getItem("token") || "";
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+  const data = await fetchJson(`${API_BASE}/api/upload/multiple`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  const urls = Array.isArray(data?.urls)
+    ? data.urls.map((u) => String(u || "").trim()).filter(Boolean)
+    : [];
+  if (urls.length !== list.length) {
+    throw new Error("Upload did not return a URL for every file");
+  }
+  return urls;
 }
+
+// Backward-compatible aliases (admin UI still imports these names).
+export const uploadImageToCloudinary = uploadImage;
+export const uploadImagesToCloudinary = uploadImages;
 
 // Collection Filters promo banner (storefront + admin)
 export async function fetchFilterPromoPublic() {
