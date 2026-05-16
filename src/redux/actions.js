@@ -1,6 +1,13 @@
-// Live API (GCP). Override for local backend: REACT_APP_API_BASE_URL=http://localhost:4000
-const API_BASE =
-  "http://35.244.32.175:5001" || process.env.REACT_APP_API_BASE_URL;
+
+// const API_BASE = process.env.REACT_APP_API_BASE_URL || "https://website-backend-bot8.vercel.app";
+  //  const API_BASE = "https://website-backend-bot8.vercel.app";
+   const API_BASE = "http://35.244.32.175:5001";
+  // const API_BASE = "https://api.smalcouture.com";
+// ss
+//const API_BASE =
+//   process.env.REACT_APP_API_BASE_URL ||
+ //  `http://${window.location.hostname}:4000`;
+
 async function fetchJson(url, options = {}, timeoutMs = 30000) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
